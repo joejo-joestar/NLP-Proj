@@ -1,0 +1,19 @@
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# macOS metadata
+.DS_Store
+
+# Raw and generated data
+dataset/
+data/ragtruth/
+outputs/
