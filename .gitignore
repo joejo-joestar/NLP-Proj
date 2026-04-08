@@ -17,3 +17,9 @@ env/
 dataset/
 data/ragtruth/
 outputs/
+
+# other files
+MarkingRubric.md
+NLP Lit Review.pdf
+NLP Research Project (Track B) — Work Distribution Plan.pdf
+Person 2 cosine drift module for Track B.pdf
