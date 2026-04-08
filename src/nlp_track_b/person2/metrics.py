@@ -18,7 +18,9 @@ def normalize_hidden_states(hidden_states: Any) -> list[torch.Tensor]:
         elif hidden_states.ndim == 3:
             layers = [hidden_states[idx] for idx in range(hidden_states.shape[0])]
         else:
-            raise ValueError(f"Unsupported hidden_states tensor shape: {tuple(hidden_states.shape)}")
+            raise ValueError(
+                f"Unsupported hidden_states tensor shape: {tuple(hidden_states.shape)}"
+            )
     elif isinstance(hidden_states, (list, tuple)):
         layers = list(hidden_states)
     else:
@@ -31,7 +33,9 @@ def normalize_hidden_states(hidden_states: Any) -> list[torch.Tensor]:
             normalized.append(tensor)
         elif tensor.ndim == 3:
             if tensor.shape[0] != 1:
-                raise ValueError(f"Only batch size 1 is supported, got batch={tensor.shape[0]}.")
+                raise ValueError(
+                    f"Only batch size 1 is supported, got batch={tensor.shape[0]}."
+                )
             normalized.append(tensor[0])
         else:
             raise ValueError(f"Unsupported layer shape: {tuple(tensor.shape)}")
@@ -78,15 +82,21 @@ def slice_answer(
     seq_len = int(hidden_state_layers[0].shape[0])
     for layer in hidden_state_layers:
         if layer.ndim != 2:
-            raise ValueError(f"Expected layer shape (seq, hidden), got {tuple(layer.shape)}.")
+            raise ValueError(
+                f"Expected layer shape (seq, hidden), got {tuple(layer.shape)}."
+            )
         if int(layer.shape[0]) != seq_len:
-            raise ValueError("All hidden-state layers must have the same sequence length.")
+            raise ValueError(
+                "All hidden-state layers must have the same sequence length."
+            )
     if not 0 <= answer_start < answer_end <= seq_len:
         raise ValueError(
             "Invalid answer token range: "
             f"start={answer_start}, end={answer_end}, seq_len={seq_len}"
         )
-    return selected, [hidden_state_layers[idx][answer_start:answer_end] for idx in selected]
+    return selected, [
+        hidden_state_layers[idx][answer_start:answer_end] for idx in selected
+    ]
 
 
 def answer_hidden_by_layer(
@@ -110,7 +120,9 @@ def _aggregate_per_layer(per_layer: torch.Tensor, aggregate: str) -> torch.Tenso
 def cosine_drift_one_layer(hidden: torch.Tensor, *, eps: float = 1e-8) -> torch.Tensor:
     """Compute intra-answer cosine drift for one layer with drift[0] = 0."""
     if hidden.ndim != 2:
-        raise ValueError(f"Expected hidden shape (A, hidden), got {tuple(hidden.shape)}.")
+        raise ValueError(
+            f"Expected hidden shape (A, hidden), got {tuple(hidden.shape)}."
+        )
     token_count = int(hidden.shape[0])
     if token_count == 0:
         raise ValueError("Cosine drift requires at least one answer token.")
@@ -146,7 +158,9 @@ def compute_cosine_drift(
     }
 
 
-def _record_answer_layers(record: Mapping[str, Any], layers: LayerSpec) -> tuple[list[int], list[torch.Tensor]]:
+def _record_answer_layers(
+    record: Mapping[str, Any], layers: LayerSpec
+) -> tuple[list[int], list[torch.Tensor]]:
     return answer_hidden_by_layer(
         record["hidden_states"],
         int(record["answer_start_token_idx"]),
@@ -155,7 +169,9 @@ def _record_answer_layers(record: Mapping[str, Any], layers: LayerSpec) -> tuple
     )
 
 
-def _covariance_stats(records: Iterable[Mapping[str, Any]], layers: LayerSpec) -> dict[str, Any]:
+def _covariance_stats(
+    records: Iterable[Mapping[str, Any]], layers: LayerSpec
+) -> dict[str, Any]:
     layers_used: list[int] | None = None
     sums: list[torch.Tensor] = []
     sum_outers: list[torch.Tensor] = []
@@ -201,7 +217,9 @@ def fit_mahalanobis_stats(
     means: list[torch.Tensor] = []
     inv_covariances: list[torch.Tensor] = []
 
-    for total, outer, count in zip(cov_stats["sums"], cov_stats["sum_outers"], cov_stats["counts"]):
+    for total, outer, count in zip(
+        cov_stats["sums"], cov_stats["sum_outers"], cov_stats["counts"]
+    ):
         mean = total / count
         centered_outer = outer - count * torch.outer(mean, mean)
         covariance = centered_outer / max(count - 1, 1)
@@ -235,7 +253,9 @@ def compute_mahalanobis(
         layers=layers_used,
     )
     per_layer_scores: list[torch.Tensor] = []
-    for hidden, mean, inv_cov in zip(answer_layers, stats["means"], stats["inv_covariances"]):
+    for hidden, mean, inv_cov in zip(
+        answer_layers, stats["means"], stats["inv_covariances"]
+    ):
         mean_t = torch.as_tensor(mean, dtype=torch.float32)
         inv_cov_t = torch.as_tensor(inv_cov, dtype=torch.float32)
         diff = hidden - mean_t
@@ -263,7 +283,9 @@ def fit_pca_stats(
     means: list[torch.Tensor] = []
     components: list[torch.Tensor] = []
 
-    for total, outer, count in zip(cov_stats["sums"], cov_stats["sum_outers"], cov_stats["counts"]):
+    for total, outer, count in zip(
+        cov_stats["sums"], cov_stats["sum_outers"], cov_stats["counts"]
+    ):
         mean = total / count
         centered_outer = outer - count * torch.outer(mean, mean)
         covariance = centered_outer / max(count - 1, 1)
@@ -300,7 +322,9 @@ def compute_pca_deviation(
         layers=layers_used,
     )
     per_layer_scores: list[torch.Tensor] = []
-    for hidden, mean, components in zip(answer_layers, stats["means"], stats["components"]):
+    for hidden, mean, components in zip(
+        answer_layers, stats["means"], stats["components"]
+    ):
         mean_t = torch.as_tensor(mean, dtype=torch.float32)
         components_t = torch.as_tensor(components, dtype=torch.float32)
         diff = hidden - mean_t
@@ -319,11 +343,21 @@ def compute_pca_deviation(
     }
 
 
-def load_hf_model(model_name: str) -> Any:
+def load_hf_model(model_name: str, *, device: str = "auto") -> Any:
     """Load a Hugging Face causal LM for logit-lens projection."""
     from transformers import AutoModelForCausalLM
+    import torch
 
     model = AutoModelForCausalLM.from_pretrained(model_name)
+    if device == "auto":
+        target_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        target_device = torch.device(device)
+        if target_device.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError(
+                f"Requested CUDA device {device!r} but CUDA is not available."
+            )
+    model.to(target_device)
     model.eval()
     return model
 
@@ -342,7 +376,9 @@ def compute_logit_lens_divergence(
     """Compare layerwise logit-lens distributions to final logits using KL divergence."""
     if model is None:
         if model_name is None:
-            raise ValueError("compute_logit_lens_divergence requires model or model_name.")
+            raise ValueError(
+                "compute_logit_lens_divergence requires model or model_name."
+            )
         model = load_hf_model(model_name)
     output_head = model.get_output_embeddings()
     if output_head is None:
@@ -354,7 +390,9 @@ def compute_logit_lens_divergence(
         answer_end,
         layers=layers,
     )
-    final_logits_t = torch.as_tensor(final_logits, dtype=torch.float32)[answer_start:answer_end]
+    final_logits_t = torch.as_tensor(final_logits, dtype=torch.float32)[
+        answer_start:answer_end
+    ]
     final_probs = F.softmax(final_logits_t, dim=-1)
 
     device = next(model.parameters()).device
@@ -380,11 +418,15 @@ def compute_logit_lens_divergence(
     }
 
 
-def fit_normalizer_stats(metric_values: Mapping[str, Sequence[torch.Tensor]]) -> dict[str, Any]:
+def fit_normalizer_stats(
+    metric_values: Mapping[str, Sequence[torch.Tensor]],
+) -> dict[str, Any]:
     """Fit mean/std normalizers for composite scoring from train metric vectors."""
     normalizers: dict[str, dict[str, float]] = {}
     for name, values in metric_values.items():
-        flat_values = [torch.as_tensor(value, dtype=torch.float32).reshape(-1) for value in values]
+        flat_values = [
+            torch.as_tensor(value, dtype=torch.float32).reshape(-1) for value in values
+        ]
         flat_values = [value for value in flat_values if value.numel() > 0]
         if not flat_values:
             raise ValueError(f"Cannot fit normalizer for empty metric: {name}")
@@ -419,7 +461,9 @@ def compute_composite_score(
         if expected_shape is None:
             expected_shape = value.shape
         elif value.shape != expected_shape:
-            raise ValueError("All metric tensors must have the same shape for composite scoring.")
+            raise ValueError(
+                "All metric tensors must have the same shape for composite scoring."
+            )
         stats = normalizer_stats[name]
         std = float(stats["std"])
         if std <= 0:

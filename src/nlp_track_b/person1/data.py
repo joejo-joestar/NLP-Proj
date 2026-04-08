@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from tqdm import tqdm
 
 from .config import SplitConfig
 from .schemas import HallucinationSpan, RawSample
@@ -14,17 +15,24 @@ REQUIRED_FIELDS = {"sample_id", "question", "retrieved_context", "answer"}
 def load_jsonl_dataset(path: Path) -> list[RawSample]:
     samples: list[RawSample] = []
     with path.open("r", encoding="utf-8") as handle:
-        for idx, line in enumerate(handle, start=1):
+        row_iter = tqdm(handle, desc="Loading converted dataset", unit="row")
+        for idx, line in enumerate(row_iter, start=1):
             text = line.strip()
             if not text:
                 continue
             obj = json.loads(text)
             missing = REQUIRED_FIELDS.difference(obj)
             if missing:
-                raise ValueError(f"Row {idx} missing required fields: {sorted(missing)}")
+                raise ValueError(
+                    f"Row {idx} missing required fields: {sorted(missing)}"
+                )
             contexts = obj["retrieved_context"]
-            if not isinstance(contexts, list) or not all(isinstance(x, str) for x in contexts):
-                raise ValueError(f"Row {idx} has invalid 'retrieved_context'; expected list[str]")
+            if not isinstance(contexts, list) or not all(
+                isinstance(x, str) for x in contexts
+            ):
+                raise ValueError(
+                    f"Row {idx} has invalid 'retrieved_context'; expected list[str]"
+                )
 
             spans = [
                 HallucinationSpan(
@@ -54,10 +62,14 @@ def load_jsonl_dataset(path: Path) -> list[RawSample]:
     return samples
 
 
-def normalize_samples(samples: list[RawSample], max_context_docs: int) -> list[RawSample]:
+def normalize_samples(
+    samples: list[RawSample], max_context_docs: int
+) -> list[RawSample]:
     normalized: list[RawSample] = []
-    for sample in samples:
-        contexts = [doc.strip() for doc in sample.retrieved_context if doc and doc.strip()]
+    for sample in tqdm(samples, desc="Normalizing samples", unit="sample"):
+        contexts = [
+            doc.strip() for doc in sample.retrieved_context if doc and doc.strip()
+        ]
         normalized.append(
             RawSample(
                 sample_id=sample.sample_id.strip(),
@@ -72,7 +84,9 @@ def normalize_samples(samples: list[RawSample], max_context_docs: int) -> list[R
     return normalized
 
 
-def split_samples(samples: list[RawSample], cfg: SplitConfig) -> dict[str, list[RawSample]]:
+def split_samples(
+    samples: list[RawSample], cfg: SplitConfig
+) -> dict[str, list[RawSample]]:
     cfg.validate()
     buckets = {"train": [], "val": [], "test": []}
 
@@ -97,7 +111,11 @@ def split_samples(samples: list[RawSample], cfg: SplitConfig) -> dict[str, list[
         val_groups = max(val_groups, 1)
         test_groups = max(test_groups, 1)
         while train_groups + val_groups + test_groups > total_groups:
-            if train_groups >= val_groups and train_groups >= test_groups and train_groups > 1:
+            if (
+                train_groups >= val_groups
+                and train_groups >= test_groups
+                and train_groups > 1
+            ):
                 train_groups -= 1
             elif val_groups >= test_groups and val_groups > 1:
                 val_groups -= 1
@@ -127,7 +145,10 @@ def save_split_manifests(split_map: dict[str, list[RawSample]], out_dir: Path) -
     for split_name, rows in split_map.items():
         file_path = split_dir / f"{split_name}.jsonl"
         with file_path.open("w", encoding="utf-8") as handle:
-            for row in rows:
+            row_iter = tqdm(
+                rows, desc=f"Writing split {split_name}", unit="sample", leave=False
+            )
+            for row in row_iter:
                 payload = {
                     "sample_id": row.sample_id,
                     "source_id": row.source_id,

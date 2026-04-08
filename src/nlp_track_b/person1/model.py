@@ -27,6 +27,7 @@ class ForwardRunner:
     tokenizer: Any = field(init=False, default=None)
     model: Any = field(init=False, default=None)
     torch: Any = field(init=False, default=None)
+    device: Any = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         """Load the HF backend once per runner instead of once per sample."""
@@ -43,6 +44,8 @@ class ForwardRunner:
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.cfg.model_name)
         self.model = AutoModelForCausalLM.from_pretrained(self.cfg.model_name)
+        self.device = _resolve_device(torch, self.cfg.device)
+        self.model.to(self.device)
         self.model.eval()
         self.torch = torch
 
@@ -61,6 +64,17 @@ class ForwardRunner:
                 torch=self.torch,
             )
         raise ValueError(f"Unknown model provider: {self.cfg.provider}")
+
+
+def _resolve_device(torch: Any, device: str) -> Any:
+    if device == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    resolved = torch.device(device)
+    if resolved.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            f"Requested CUDA device {device!r} but CUDA is not available."
+        )
+    return resolved
 
 
 def _seed_for(sample: FormattedSample) -> int:
@@ -126,7 +140,9 @@ def _find_answer_token_span(
     return answer_indices[0], answer_indices[-1] + 1
 
 
-def _tokenize_full_input(sample: FormattedSample, cfg: ModelConfig, tokenizer: Any) -> TokenizedInput:
+def _tokenize_full_input(
+    sample: FormattedSample, cfg: ModelConfig, tokenizer: Any
+) -> TokenizedInput:
     """Tokenize the exact full input and keep a valid answer-token range."""
     assert sample.full_input_text == sample.prompt + sample.answer
     assert sample.answer
@@ -213,7 +229,10 @@ def _align_answer_tokens(
             )
         )
 
-    assert len(aligned) == tokenized.answer_end_token_idx - tokenized.answer_start_token_idx
+    assert (
+        len(aligned)
+        == tokenized.answer_end_token_idx - tokenized.answer_start_token_idx
+    )
     return aligned
 
 
@@ -225,9 +244,10 @@ def _run_hf_forward(
     torch: Any,
 ) -> ModelOutput:
     tokenized = _tokenize_full_input(sample=sample, cfg=cfg, tokenizer=tokenizer)
+    device = next(model.parameters()).device
     model_inputs = {
-        "input_ids": torch.tensor([tokenized.input_ids]),
-        "attention_mask": torch.tensor([tokenized.attention_mask]),
+        "input_ids": torch.tensor([tokenized.input_ids], device=device),
+        "attention_mask": torch.tensor([tokenized.attention_mask], device=device),
     }
 
     with torch.no_grad():
