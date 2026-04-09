@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import sys
 from typing import Any
+from tqdm import tqdm
 
 import torch
 
@@ -126,7 +127,7 @@ def main() -> None:
         model = load_hf_model(model_name, device=args.device)
 
     saved = 0
-    for path in paths:
+    for path in tqdm(paths, desc="Computing Person2 metrics", unit="artifact"):
         record = load_person1_artifact(path, require_logits=args.include_logit_lens)
         answer_start = int(record["answer_start_token_idx"])
         answer_end = int(record["answer_end_token_idx"])

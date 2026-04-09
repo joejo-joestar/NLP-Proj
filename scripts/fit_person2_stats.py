@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sys
+from tqdm import tqdm
 
 import torch
 
@@ -134,7 +135,10 @@ def main() -> None:
         model = load_hf_model(model_name, device=args.device)
         metric_values["logit_lens_divergence"] = []
 
-    for record in records(require_logits=args.include_logit_lens):
+    records_iter = records(require_logits=args.include_logit_lens)
+    for record in tqdm(
+        records_iter, total=len(paths), desc="Fitting Person2 stats", unit="artifact"
+    ):
         answer_start = int(record["answer_start_token_idx"])
         answer_end = int(record["answer_end_token_idx"])
         cosine = compute_cosine_drift(
