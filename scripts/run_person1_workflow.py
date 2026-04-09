@@ -61,6 +61,12 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="Execution device for HF runs: auto, cpu, cuda, or cuda:N",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="Number of samples to process per HF forward pass.",
+    )
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--test-ratio", type=float, default=0.15)
@@ -100,6 +106,7 @@ def main() -> None:
                 provider=args.provider,
                 model_name=args.model_name,
                 device=args.device,
+                batch_size=args.batch_size,
             ),
         )
         pipeline_summary = run_person1_pipeline(cfg)

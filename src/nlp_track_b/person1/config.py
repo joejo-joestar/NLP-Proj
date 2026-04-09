@@ -22,8 +22,11 @@ class ModelConfig:
     provider: str = "hf"
     model_name: str = "distilgpt2"
     device: str = "auto"
+    batch_size: int = 8
     max_context_docs: int = 3
     max_seq_len: int = 512
+    compact_output: bool = False
+    logits_topk: int = 5
     hidden_size: int = 32
     num_layers: int = 4
     vocab_size: int = 128
@@ -33,11 +36,18 @@ class ModelConfig:
 class PipelineConfig:
     raw_dataset_path: Path
     output_dir: Path
+    limit_samples: int = 0
     split: SplitConfig = field(default_factory=SplitConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
 
     def validate(self) -> None:
         self.split.validate()
+        if self.limit_samples < 0:
+            raise ValueError(f"limit_samples must be >= 0, got {self.limit_samples}")
+        if self.model.logits_topk < 1:
+            raise ValueError(f"logits_topk must be >= 1, got {self.model.logits_topk}")
+        if self.model.batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1, got {self.model.batch_size}")
         if not self.raw_dataset_path.exists():
             raise FileNotFoundError(f"Dataset file not found: {self.raw_dataset_path}")
         self.output_dir.mkdir(parents=True, exist_ok=True)

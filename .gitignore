@@ -17,6 +17,7 @@ env/
 dataset/
 data/ragtruth/
 outputs/
+artifacts/
 
 # other files
 MarkingRubric.md

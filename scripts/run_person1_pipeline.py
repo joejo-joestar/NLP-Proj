@@ -51,6 +51,35 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="Execution device for HF runs: auto, cpu, cuda, or cuda:N",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="Number of samples to process per HF forward pass.",
+    )
+    parser.add_argument(
+        "--max-seq-len",
+        type=int,
+        default=512,
+        help="Maximum tokenized sequence length for HF forward pass.",
+    )
+    parser.add_argument(
+        "--compact-output",
+        action="store_true",
+        help="Save smaller HF JSON artifacts (last-layer + top-k logits in metadata).",
+    )
+    parser.add_argument(
+        "--logits-topk",
+        type=int,
+        default=5,
+        help="Top-k logits to keep per token when --compact-output is enabled.",
+    )
+    parser.add_argument(
+        "--limit-samples",
+        type=int,
+        default=0,
+        help="Optional cap on number of normalized samples to process (0 = all).",
+    )
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--test-ratio", type=float, default=0.15)
@@ -63,6 +92,7 @@ def main() -> None:
     cfg = PipelineConfig(
         raw_dataset_path=args.dataset,
         output_dir=args.output_dir,
+        limit_samples=args.limit_samples,
         split=SplitConfig(
             train_ratio=args.train_ratio,
             val_ratio=args.val_ratio,
@@ -70,7 +100,13 @@ def main() -> None:
             seed=args.seed,
         ),
         model=ModelConfig(
-            provider=args.provider, model_name=args.model_name, device=args.device
+            provider=args.provider,
+            model_name=args.model_name,
+            max_seq_len=args.max_seq_len,
+            compact_output=args.compact_output,
+            logits_topk=args.logits_topk,
+            device=args.device,
+            batch_size=args.batch_size,
         ),
     )
     summary = run_person1_pipeline(cfg)

@@ -39,10 +39,6 @@ class FormattedSample:
 
     sample_id: str
     split: str
-    question: str
-    context: list[str]
-    answer: str
-    full_input_text: str
     prompt: str
     answer_tokens: list[str]
     token_alignment: list[TokenAlignment]
@@ -56,15 +52,6 @@ class ModelOutput:
 
     sample_id: str
     split: str
-    question: str
-    context: list[str]
-    answer: str
-    full_input_text: str
-    input_ids: list[int]
-    attention_mask: list[int]
-    token_length: int
-    answer_start_token_idx: int
-    answer_end_token_idx: int
     hidden_states: list[list[list[float]]]
     logits: list[list[float]]
     token_outputs: list[str]
