@@ -5,6 +5,10 @@ This repository contains the Track B hallucination-analysis pipeline.
 - Person 1 converts RAGTruth-style JSONL data, creates train/validation/test splits, formats samples for a forward pass, and saves model output artifacts.
 - Person 2 consumes Person 1 artifacts and computes token-level metrics such as cosine drift, Mahalanobis distance, PCA deviation, logit-lens divergence, and composite scores.
 
+## Datasets
+
+- _**RAGTruth**_: Get the `dataset` folder from the [RAGTruth](https://github.com/ParticleMedia/RAGTruth) repository
+
 ## Repository Structure
 
 ```text
@@ -177,55 +181,3 @@ Run the tests:
 ```bash
 python3 -m unittest discover -s tests -v
 ```
-
-## GitHub Push Guidance
-
-The GitHub remote for this checkout is:
-
-```text
-https://github.com/Chirudeva-Reddy/NLP-Proj.git
-```
-
-Use this first-push flow when setting up from a fresh local copy:
-
-```bash
-git init
-git remote add origin https://github.com/Chirudeva-Reddy/NLP-Proj.git
-git fetch origin main
-git checkout -b main origin/main
-git add .gitignore README.md scripts src tests data/sample \
-  "Midsem_Assignment_NLP_CS_F429.pdf" \
-  "NLP Lit Review.pdf" \
-  "NLP Research Project (Track B) — Work Distribution Plan.pdf" \
-  "Person 2 cosine drift module for Track B.pdf"
-git commit -m "Document project structure"
-git branch -M main
-git remote add origin <github-repo-url>
-git push -u origin main
-```
-
-Push these:
-
-- `.gitignore`
-- `README.md`
-- `src/`
-- `scripts/`
-- `tests/`
-- `data/sample/`
-- Project PDFs, if they are meant to be part of the repository
-
-Do not push these through normal Git:
-
-- `dataset/`: raw local dataset, ignored by request.
-- `outputs/`: generated artifacts; this folder is about 17 GB in this checkout.
-- `data/ragtruth/`: converted generated dataset files.
-- `__pycache__/`, `.DS_Store`, and other local cache/metadata files.
-
-GitHub's regular Git file limits are documented at <https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github>: files over 50 MiB trigger a warning, and files over 100 MiB are blocked. This checkout currently has these GitHub-limit risks:
-
-- `outputs/person1/converted_raw.jsonl`: about 104 MB, blocked by the normal GitHub file limit.
-- `outputs/person1/splits/train.jsonl`: about 73 MB, below the hard block but above the warning threshold.
-- `outputs/person1_hf_20/model_outputs/**/*.json`: 20 files around 542-544 MB each, blocked by the normal GitHub file limit.
-- `outputs/person1_hf_smoke/model_outputs/test/ragtruth_0.json`: about 543 MB, blocked by the normal GitHub file limit.
-
-If large generated artifacts must be shared, use Git LFS, GitHub Releases, or external storage instead of committing them to normal Git history.

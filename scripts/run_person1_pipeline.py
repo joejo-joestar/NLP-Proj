@@ -20,7 +20,9 @@ run_person1_pipeline = pipeline_mod.run_person1_pipeline
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run Person 1 data + inference pipeline")
+    parser = argparse.ArgumentParser(
+        description="Run Person 1 data + inference pipeline"
+    )
     parser.add_argument(
         "--dataset",
         type=Path,
@@ -44,6 +46,11 @@ def parse_args() -> argparse.Namespace:
         default="distilgpt2",
         help="HF model name if provider='hf'",
     )
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="Execution device for HF runs: auto, cpu, cuda, or cuda:N",
+    )
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--test-ratio", type=float, default=0.15)
@@ -62,7 +69,9 @@ def main() -> None:
             test_ratio=args.test_ratio,
             seed=args.seed,
         ),
-        model=ModelConfig(provider=args.provider, model_name=args.model_name),
+        model=ModelConfig(
+            provider=args.provider, model_name=args.model_name, device=args.device
+        ),
     )
     summary = run_person1_pipeline(cfg)
     print(summary)

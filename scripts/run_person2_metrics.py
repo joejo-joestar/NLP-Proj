@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import sys
 from typing import Any
+from tqdm import tqdm
 
 import torch
 
@@ -70,17 +71,32 @@ def _to_serializable_metric_artifact(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Person 2 token-level metrics")
     parser.add_argument("input", type=Path, help="Person 1 artifact file or directory")
-    parser.add_argument("--output-dir", type=Path, default=Path("outputs/person2/metrics"))
-    parser.add_argument("--stats", type=Path, default=None, help="Optional fitted stats .pt path")
-    parser.add_argument("--layers", default="last4", help="'last4', 'all', or comma-separated indices")
-    parser.add_argument("--limit", type=int, default=0, help="Optional artifact limit for smoke tests")
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("outputs/person2/metrics")
+    )
+    parser.add_argument(
+        "--stats", type=Path, default=None, help="Optional fitted stats .pt path"
+    )
+    parser.add_argument(
+        "--layers", default="last4", help="'last4', 'all', or comma-separated indices"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Optional artifact limit for smoke tests"
+    )
     parser.add_argument("--save-format", choices=["pt", "json"], default="pt")
     parser.add_argument(
         "--include-logit-lens",
         action="store_true",
         help="Also compute logit lens divergence by loading an HF model",
     )
-    parser.add_argument("--model-name", default=None, help="HF model name for logit lens")
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="Execution device for HF logit-lens loading: auto, cpu, cuda, or cuda:N",
+    )
+    parser.add_argument(
+        "--model-name", default=None, help="HF model name for logit lens"
+    )
     return parser.parse_args()
 
 
@@ -94,24 +110,33 @@ def main() -> None:
     if not paths:
         raise ValueError(f"No artifacts found under: {args.input}")
 
-    stats = torch.load(args.stats, map_location="cpu", weights_only=False) if args.stats else {}
+    stats = (
+        torch.load(args.stats, map_location="cpu", weights_only=False)
+        if args.stats
+        else {}
+    )
     model = None
     if args.include_logit_lens:
         first = load_person1_artifact(paths[0], require_logits=True)
         model_name = args.model_name or first.get("metadata", {}).get("hf_model")
         if not model_name:
-            raise ValueError("--model-name is required when metadata.hf_model is missing.")
-        model = load_hf_model(model_name)
+            raise ValueError(
+                "--model-name is required when metadata.hf_model is missing."
+            )
+
+        model = load_hf_model(model_name, device=args.device)
 
     saved = 0
-    for path in paths:
+    for path in tqdm(paths, desc="Computing Person2 metrics", unit="artifact"):
         record = load_person1_artifact(path, require_logits=args.include_logit_lens)
         answer_start = int(record["answer_start_token_idx"])
         answer_end = int(record["answer_end_token_idx"])
         metric_values: dict[str, torch.Tensor] = {}
         per_layer_values: dict[str, torch.Tensor] = {}
 
-        cosine = compute_cosine_drift(record["hidden_states"], answer_start, answer_end, layers=layers)
+        cosine = compute_cosine_drift(
+            record["hidden_states"], answer_start, answer_end, layers=layers
+        )
         layers_used = cosine["layers_used"]
         metric_values["cosine_drift"] = cosine["cosine_drift"]
         per_layer_values["cosine_drift_per_layer"] = cosine["cosine_drift_per_layer"]
@@ -124,9 +149,13 @@ def main() -> None:
                 stats["mahalanobis"],
             )
             metric_values["mahalanobis_distance"] = mahalanobis["mahalanobis_distance"]
-            per_layer_values["mahalanobis_per_layer"] = mahalanobis["mahalanobis_per_layer"]
+            per_layer_values["mahalanobis_per_layer"] = mahalanobis[
+                "mahalanobis_per_layer"
+            ]
         if "pca" in stats:
-            pca = compute_pca_deviation(record["hidden_states"], answer_start, answer_end, stats["pca"])
+            pca = compute_pca_deviation(
+                record["hidden_states"], answer_start, answer_end, stats["pca"]
+            )
             metric_values["pca_deviation"] = pca["pca_deviation"]
             per_layer_values["pca_deviation_per_layer"] = pca["pca_deviation_per_layer"]
         if model is not None:
@@ -145,7 +174,9 @@ def main() -> None:
 
         normalizers = stats.get("normalizers")
         if normalizers and all(name in metric_values for name in normalizers):
-            metric_values["composite_score"] = compute_composite_score(metric_values, normalizers)
+            metric_values["composite_score"] = compute_composite_score(
+                metric_values, normalizers
+            )
 
         artifact = _to_serializable_metric_artifact(
             record=record,

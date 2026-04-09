@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sys
 
+from tqdm import tqdm
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT_DIR / "src"
@@ -55,6 +56,11 @@ def parse_args() -> argparse.Namespace:
         default="distilgpt2",
         help="HF model name if provider='hf'",
     )
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="Execution device for HF runs: auto, cpu, cuda, or cuda:N",
+    )
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--test-ratio", type=float, default=0.15)
@@ -71,26 +77,36 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     converted_jsonl = args.converted_jsonl or (args.output_dir / "converted_raw.jsonl")
+    stage_bar = tqdm(total=2, desc="Workflow stages", unit="stage")
+    try:
+        conversion_summary = convert_ragtruth_to_person1(
+            response_jsonl=args.response_jsonl,
+            source_info_jsonl=args.source_info_jsonl,
+            output_jsonl=converted_jsonl,
+            limit=args.limit,
+        )
+        stage_bar.update(1)
 
-    conversion_summary = convert_ragtruth_to_person1(
-        response_jsonl=args.response_jsonl,
-        source_info_jsonl=args.source_info_jsonl,
-        output_jsonl=converted_jsonl,
-        limit=args.limit,
-    )
-
-    cfg = PipelineConfig(
-        raw_dataset_path=converted_jsonl,
-        output_dir=args.output_dir,
-        split=SplitConfig(
-            train_ratio=args.train_ratio,
-            val_ratio=args.val_ratio,
-            test_ratio=args.test_ratio,
-            seed=args.seed,
-        ),
-        model=ModelConfig(provider=args.provider, model_name=args.model_name),
-    )
-    pipeline_summary = run_person1_pipeline(cfg)
+        cfg = PipelineConfig(
+            raw_dataset_path=converted_jsonl,
+            output_dir=args.output_dir,
+            split=SplitConfig(
+                train_ratio=args.train_ratio,
+                val_ratio=args.val_ratio,
+                test_ratio=args.test_ratio,
+                seed=args.seed,
+            ),
+            model=ModelConfig(
+                provider=args.provider,
+                model_name=args.model_name,
+                device=args.device,
+            ),
+        )
+        pipeline_summary = run_person1_pipeline(cfg)
+        stage_bar.update(1)
+    finally:
+        if hasattr(stage_bar, "close"):
+            stage_bar.close()
 
     print(
         json.dumps(

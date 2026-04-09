@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tqdm import tqdm
+
 
 def load_source_info(path: Path) -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
     with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
+        for line in tqdm(handle, desc="Indexing source_info", unit="row"):
             line = line.strip()
             if not line:
                 continue
@@ -60,10 +62,11 @@ def convert_ragtruth_to_person1(
 
     written = 0
     missing_source = 0
-    with response_jsonl.open("r", encoding="utf-8") as src, output_jsonl.open(
-        "w", encoding="utf-8"
-    ) as out:
-        for line in src:
+    with (
+        response_jsonl.open("r", encoding="utf-8") as src,
+        output_jsonl.open("w", encoding="utf-8") as out,
+    ):
+        for line in tqdm(src, desc="Converting RAGTruth", unit="row"):
             line = line.strip()
             if not line:
                 continue

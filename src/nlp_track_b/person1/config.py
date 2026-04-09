@@ -21,6 +21,7 @@ class SplitConfig:
 class ModelConfig:
     provider: str = "hf"
     model_name: str = "distilgpt2"
+    device: str = "auto"
     max_context_docs: int = 3
     max_seq_len: int = 512
     hidden_size: int = 32
